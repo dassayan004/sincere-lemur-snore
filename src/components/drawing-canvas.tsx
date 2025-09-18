@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Minus, RectangleHorizontal, Square, Expand, Trash2 } from 'lucide-react';
+import { Minus, RectangleHorizontal, Square, Expand, Trash2, Send } from 'lucide-react';
+import { toast } from "sonner";
 
 type DrawingMode = 'line' | 'rectangle' | 'square' | 'none';
 type Point = { x: number; y: number };
@@ -76,6 +77,15 @@ const DrawingCanvas = () => {
     setShapes([...shapes, wholeAreaShape]);
   };
 
+  const handleSubmit = () => {
+    if (shapes.length === 0) {
+      toast.warning("Canvas is empty. Draw something to submit!");
+      return;
+    }
+    console.log('Submitted Shapes:', shapes);
+    toast.success(`Successfully submitted ${shapes.length} shape(s).`);
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -145,6 +155,9 @@ const DrawingCanvas = () => {
         </Button>
         <Button variant="destructive" onClick={() => setShapes([])}>
           <Trash2 className="mr-2 h-4 w-4" /> Clear
+        </Button>
+        <Button onClick={handleSubmit}>
+          <Send className="mr-2 h-4 w-4" /> Submit
         </Button>
       </div>
       <canvas
