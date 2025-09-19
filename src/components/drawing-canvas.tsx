@@ -24,29 +24,29 @@ const DrawingCanvas = () => {
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [isWebcamAvailable, setIsWebcamAvailable] = useState(true);
 
-  const getCanvasCoordinates = (event: React.MouseEvent<HTMLCanvasElement>): Point => {
+  const getCanvasCoordinates = (clientX: number, clientY: number): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     return {
-      x: (event.clientX - rect.left) * scaleX,
-      y: (event.clientY - rect.top) * scaleY,
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (drawingMode === 'none') return;
     setIsDrawing(true);
-    const point = getCanvasCoordinates(event);
+    const point = getCanvasCoordinates(event.clientX, event.clientY);
     setStartPoint(point);
     setCurrentPoint(point);
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !startPoint) return;
-    const point = getCanvasCoordinates(event);
+    const point = getCanvasCoordinates(event.clientX, event.clientY);
     setCurrentPoint(point);
   };
 
@@ -69,6 +69,24 @@ const DrawingCanvas = () => {
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    if (drawingMode === 'none') return;
+    event.preventDefault();
+    setIsDrawing(true);
+    const touch = event.touches[0];
+    const point = getCanvasCoordinates(touch.clientX, touch.clientY);
+    setStartPoint(point);
+    setCurrentPoint(point);
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !startPoint) return;
+    event.preventDefault();
+    const touch = event.touches[0];
+    const point = getCanvasCoordinates(touch.clientX, touch.clientY);
+    setCurrentPoint(point);
   };
 
   const selectWholeArea = () => {
@@ -230,6 +248,9 @@ const DrawingCanvas = () => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleMouseUp}
         />
       </div>
     </div>
