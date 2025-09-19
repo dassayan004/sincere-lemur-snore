@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Minus, RectangleHorizontal, Square, Expand, Trash2, Send } from 'lucide-react';
 import { toast } from "sonner";
+import Hls from "hls.js";
 
 type DrawingMode = 'line' | 'rectangle' | 'square' | 'none';
 type Point = { x: number; y: number };
@@ -15,11 +16,13 @@ type Shape = {
 
 const DrawingCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
   const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
   const [shapes, setShapes] = useState<Shape[]>([]);
+  const [isWebcamAvailable, setIsWebcamAvailable] = useState(true);
 
   const getCanvasCoordinates = (event: React.MouseEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current;
@@ -49,17 +52,17 @@ const DrawingCanvas = () => {
 
   const handleMouseUp = () => {
     if (!isDrawing || !startPoint || !currentPoint) return;
-    
+
     let newShape: Shape = { type: drawingMode, start: startPoint, end: currentPoint };
 
     if (drawingMode === 'square') {
-        const width = currentPoint.x - startPoint.x;
-        const height = currentPoint.y - startPoint.y;
-        const side = Math.max(Math.abs(width), Math.abs(height));
-        newShape.end = {
-            x: startPoint.x + (width > 0 ? side : -side),
-            y: startPoint.y + (height > 0 ? side : -side)
-        };
+      const width = currentPoint.x - startPoint.x;
+      const height = currentPoint.y - startPoint.y;
+      const side = Math.max(Math.abs(width), Math.abs(height));
+      newShape.end = {
+        x: startPoint.x + (width > 0 ? side : -side),
+        y: startPoint.y + (height > 0 ? side : -side)
+      };
     }
 
     setShapes([...shapes, newShape]);
@@ -67,14 +70,14 @@ const DrawingCanvas = () => {
     setStartPoint(null);
     setCurrentPoint(null);
   };
-  
+
   const selectWholeArea = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const wholeAreaShape: Shape = {
-        type: 'rectangle',
-        start: { x: 0, y: 0 },
-        end: { x: canvas.width, y: canvas.height }
+      type: 'rectangle',
+      start: { x: 0, y: 0 },
+      end: { x: canvas.width, y: canvas.height }
     };
     setShapes([...shapes, wholeAreaShape]);
   };
@@ -95,7 +98,7 @@ const DrawingCanvas = () => {
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     ctx.strokeStyle = 'black';
     ctx.lineWidth = 2;
     ctx.fillStyle = 'rgba(0, 0, 255, 0.1)';
@@ -111,13 +114,59 @@ const DrawingCanvas = () => {
         const height = currentPoint.y - startPoint.y;
         const side = Math.max(Math.abs(width), Math.abs(height));
         previewShape.end = {
-            x: startPoint.x + (width > 0 ? side : -side),
-            y: startPoint.y + (height > 0 ? side : -side)
+          x: startPoint.x + (width > 0 ? side : -side),
+          y: startPoint.y + (height > 0 ? side : -side)
         };
       }
       drawShape(ctx, previewShape);
     }
   }, [shapes, isDrawing, startPoint, currentPoint, drawingMode]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+        })
+        .catch(err => {
+          console.error("Error accessing webcam: ", err);
+          toast.error("Error accessing webcam. Please ensure you have a webcam connected and have granted permission.");
+          setIsWebcamAvailable(false);
+        });
+    } else {
+      setIsWebcamAvailable(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isWebcamAvailable) {
+      const video = videoRef.current;
+      if (!video) return;
+
+      const hlsUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play();
+        });
+        return () => {
+          hls.destroy();
+        };
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = hlsUrl;
+        video.addEventListener("loadedmetadata", () => {
+          video.play();
+        });
+      }
+    }
+  }, [isWebcamAvailable]);
 
   const drawShape = (ctx: CanvasRenderingContext2D, shape: Shape) => {
     ctx.beginPath();
@@ -162,16 +211,27 @@ const DrawingCanvas = () => {
           <Send className="mr-2 h-4 w-4" /> Submit
         </Button>
       </div>
-      <canvas
-        ref={canvasRef}
-        width="1065"
-        height="599"
-        className="border border-gray-400 rounded-md max-w-full h-auto"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      />
+      <div className="relative w-full max-w-[1065px]">
+        <video
+          ref={videoRef}
+          width="1065"
+          height="599"
+          className="rounded-md w-full h-auto"
+          autoPlay
+          playsInline
+          muted
+        />
+        <canvas
+          ref={canvasRef}
+          width="1065"
+          height="599"
+          className="absolute top-0 left-0 w-full h-full bg-transparent border border-gray-400 rounded-md max-w-full"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        />
+      </div>
     </div>
   );
 };
